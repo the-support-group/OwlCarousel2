@@ -107,11 +107,6 @@
 		this._mergers = [];
 
 		/**
-		 * Widths of all items.
-		 */
-		this._widths = [];
-
-		/**
 		 * Invalidated parts within the update process.
 		 * @protected
 		 */
@@ -158,11 +153,11 @@
 		}, this));
 
 		$.each(Owl.Plugins, $.proxy(function(key, plugin) {
-			this._plugins[key.charAt(0).toLowerCase() + key.slice(1)]
+			this._plugins[key[0].toLowerCase() + key.slice(1)]
 				= new plugin(this);
 		}, this));
 
-		$.each(Owl.Workers, $.proxy(function(priority, worker) {
+		$.each(Owl.Pipe, $.proxy(function(priority, worker) {
 			this._pipe.push({
 				'filter': worker.filter,
 				'run': $.proxy(worker.run, this)
@@ -223,7 +218,10 @@
 		itemClass: 'owl-item',
 		stageClass: 'owl-stage',
 		stageOuterClass: 'owl-stage-outer',
-		grabClass: 'owl-grab'
+		grabClass: 'owl-grab',
+		clonedClass: 'cloned',
+		activeClass: 'active',
+		centerClass: 'center'
 	};
 
 	/**
@@ -256,9 +254,9 @@
 	Owl.Plugins = {};
 
 	/**
-	 * List of workers involved in the update process.
+	 * Update pipe.
 	 */
-	Owl.Workers = [ {
+	Owl.Pipe = [ {
 		filter: [ 'width', 'settings' ],
 		run: function() {
 			this._width = this.$element.width();
@@ -267,52 +265,6 @@
 		filter: [ 'width', 'items', 'settings' ],
 		run: function(cache) {
 			cache.current = this._items && this._items[this.relative(this._current)];
-		}
-	}, {
-		filter: [ 'items', 'settings' ],
-		run: function() {
-			this.$stage.children('.cloned').remove();
-		}
-	}, {
-		filter: [ 'width', 'items', 'settings' ],
-		run: function(cache) {
-			var margin = this.settings.margin || '',
-				grid = !this.settings.autoWidth,
-				rtl = this.settings.rtl,
-				css = {
-					'width': 'auto',
-					'margin-left': rtl ? margin : '',
-					'margin-right': rtl ? '' : margin
-				};
-
-			!grid && this.$stage.children().css(css);
-
-			cache.css = css;
-		}
-	}, {
-		filter: [ 'width', 'items', 'settings' ],
-		run: function(cache) {
-			var width = (this.width() / this.settings.items).toFixed(3) - this.settings.margin,
-				merge = null,
-				iterator = this._items.length,
-				grid = !this.settings.autoWidth,
-				widths = [];
-
-			cache.items = {
-				merge: false,
-				width: width
-			};
-
-			while (iterator--) {
-				merge = this._mergers[iterator];
-				merge = this.settings.mergeFit && Math.min(merge, this.settings.items) || merge;
-
-				cache.items.merge = merge > 1 || cache.items.merge;
-
-				widths[iterator] = !grid ? this._items[iterator].width() : width * merge;
-			}
-
-			this._widths = widths;
 		}
 	}, {
 		filter: [ 'items', 'settings' ],
@@ -336,62 +288,56 @@
 			}
 
 			this._clones = clones;
+			this.$stage.children('.' + this.options.clonedClass).remove();
 
-			$(append).addClass('cloned').appendTo(this.$stage);
-			$(prepend).addClass('cloned').prependTo(this.$stage);
+			$(append).addClass(this.options.clonedClass).appendTo(this.$stage);
+			$(prepend).addClass(this.options.clonedClass).prependTo(this.$stage);
 		}
 	}, {
 		filter: [ 'width', 'items', 'settings' ],
 		run: function() {
-			var rtl = this.settings.rtl ? 1 : -1,
-				size = this._clones.length + this._items.length,
-				iterator = -1,
-				previous = 0,
-				current = 0,
-				coordinates = [];
+			var rtl = (this.settings.rtl ? 1 : -1),
+				width = (this.width() / this.settings.items).toFixed(3),
+				coordinate = 0, merge, i, n;
 
-			while (++iterator < size) {
-				previous = coordinates[iterator - 1] || 0;
-				current = this._widths[this.relative(iterator)] + this.settings.margin;
-				coordinates.push(previous + current * rtl);
+			this._coordinates = [];
+			for (i = 0, n = this._clones.length + this._items.length; i < n; i++) {
+				merge = this._mergers[this.relative(i)];
+				merge = (this.settings.mergeFit && Math.min(merge, this.settings.items)) || merge;
+				coordinate += (this.settings.autoWidth ? this._items[this.relative(i)].width() + this.settings.margin : width * merge) * rtl;
+
+				this._coordinates.push(coordinate);
 			}
-
-			this._coordinates = coordinates;
 		}
 	}, {
 		filter: [ 'width', 'items', 'settings' ],
 		run: function() {
-			var padding = this.settings.stagePadding,
-				coordinates = this._coordinates,
-				css = {
-					'width': Math.ceil(Math.abs(coordinates[coordinates.length - 1])) + padding * 2,
-					'padding-left': padding || '',
-					'padding-right': padding || ''
-				};
+			var i, n, width = (this.width() / this.settings.items).toFixed(3), css = {
+				'width': Math.ceil(Math.abs(this._coordinates[this._coordinates.length - 1])) + this.settings.stagePadding * 2,
+				'padding-left': this.settings.stagePadding || '',
+				'padding-right': this.settings.stagePadding || ''
+			};
 
 			this.$stage.css(css);
-		}
-	}, {
-		filter: [ 'width', 'items', 'settings' ],
-		run: function(cache) {
-			var iterator = this._coordinates.length,
-				grid = !this.settings.autoWidth,
-				items = this.$stage.children();
 
-			if (grid && cache.items.merge) {
-				while (iterator--) {
-					cache.css.width = this._widths[this.relative(iterator)];
-					items.eq(iterator).css(cache.css);
+			css = { 'width': this.settings.autoWidth ? 'auto' : width - this.settings.margin };
+			css[this.settings.rtl ? 'margin-left' : 'margin-right'] = this.settings.margin;
+
+			if (!this.settings.autoWidth && $.grep(this._mergers, function(v) { return v > 1 }).length > 0) {
+				for (i = 0, n = this._coordinates.length; i < n; i++) {
+					css.width = Math.abs(this._coordinates[i]) - Math.abs(this._coordinates[i - 1] || 0) - this.settings.margin;
+					this.$stage.children().eq(i).css(css);
 				}
-			} else if (grid) {
-				cache.css.width = cache.items.width;
-				items.css(cache.css);
+			} else {
+				this.$stage.children().css(css);
 			}
 		}
 	}, {
 		filter: [ 'items' ],
 		run: function() {
-			this._coordinates.length < 1 && this.$stage.removeAttr('style');
+			if (this._items.length < 1) {
+				this.$stage.removeAttr('style');
+			}
 		}
 	}, {
 		filter: [ 'width', 'items', 'settings' ],
@@ -424,12 +370,12 @@
 				}
 			}
 
-			this.$stage.children('.active').removeClass('active');
-			this.$stage.children(':eq(' + matches.join('), :eq(') + ')').addClass('active');
+			this.$stage.children('.' + this.options.activeClass).removeClass(this.options.activeClass);
+			this.$stage.children(':eq(' + matches.join('), :eq(') + ')').addClass(this.options.activeClass);
 
 			if (this.settings.center) {
-				this.$stage.children('.center').removeClass('center');
-				this.$stage.children().eq(this.current()).addClass('center');
+				this.$stage.children('.' + this.options.centerClass).removeClass(this.options.centerClass);
+				this.$stage.children().eq(this.current()).addClass(this.options.centerClass);
 			}
 		}
 	} ];
@@ -689,7 +635,6 @@
 
 	/**
 	 * Handles `touchstart` and `mousedown` events.
-	 * @todo Horizontal swipe threshold as option
 	 * @todo #261
 	 * @protected
 	 * @param {Event} event - The event arguments.
@@ -697,9 +642,12 @@
 	Owl.prototype.onDragStart = function(event) {
 		var stage = null;
 
-		if (event.which === 3) {
-			return;
+		if (event.which === 3 || this.is('dragging')) {
+			return false;
 		}
+
+		this.enter('dragging');
+		this.trigger('drag');
 
 		if ($.support.transform) {
 			stage = this.$stage.css('transform').replace(/.*\(|\)| /g, '').split(',');
@@ -732,26 +680,13 @@
 		this._drag.stage.current = stage;
 		this._drag.pointer = this.pointer(event);
 
+		$(document).on('mousemove.owl.core touchmove.owl.core', $.proxy(this.onDragMove, this));
 		$(document).on('mouseup.owl.core touchend.owl.core', $.proxy(this.onDragEnd, this));
-
-		$(document).one('mousemove.owl.core touchmove.owl.core', $.proxy(function(event) {
-			var delta = this.difference(this._drag.pointer, this.pointer(event));
-
-			$(document).on('mousemove.owl.core touchmove.owl.core', $.proxy(this.onDragMove, this));
-
-			if (Math.abs(delta.x) < Math.abs(delta.y) && this.is('valid')) {
-				return;
-			}
-
-			event.preventDefault();
-
-			this.enter('dragging');
-			this.trigger('drag');
-		}, this));
 	};
 
 	/**
 	 * Handles the `touchmove` and `mousemove` events.
+	 * @todo Horizontal swipe threshold as option
 	 * @todo #261
 	 * @protected
 	 * @param {Event} event - The event arguments.
@@ -767,8 +702,6 @@
 			return;
 		}
 
-		event.preventDefault();
-
 		if (this.settings.loop) {
 			minimum = this.coordinates(this.minimum());
 			maximum = this.coordinates(this.maximum() + 1) - minimum;
@@ -780,9 +713,13 @@
 			stage.x = Math.max(Math.min(stage.x, minimum + pull), maximum + pull);
 		}
 
-		this._drag.stage.current = stage;
+		if (delta.x > 8 || delta.x < -8) {
+			event.preventDefault();
+		}
 
 		this.animate(stage.x);
+
+		this._drag.stage.current = stage;
 	};
 
 	/**
@@ -797,26 +734,26 @@
 			stage = this._drag.stage.current,
 			direction = delta.x > 0 ^ this.settings.rtl ? 'left' : 'right';
 
-		$(document).off('.owl.core');
+		if (!this.is('dragging')) {
+			return;
+		}
 
 		this.$element.removeClass(this.options.grabClass);
 
-		if (delta.x !== 0 && this.is('dragging') || !this.is('valid')) {
+		if (delta.x !== 0 || !this.is('valid')) {
+			if (Math.abs(delta.x) > 3 || new Date().getTime() - this._drag.time > 300) {
+				this._drag.target.one('click.owl.core', function() { return false; });
+			}
+
 			this.speed(this.settings.dragEndSpeed || this.settings.smartSpeed);
 			this.current(this.closest(stage.x, delta.x !== 0 ? direction : this._drag.direction));
 			this.invalidate('position');
 			this.update();
 
 			this._drag.direction = direction;
-
-			if (Math.abs(delta.x) > 3 || new Date().getTime() - this._drag.time > 300) {
-				this._drag.target.one('click.owl.core', function() { return false; });
-			}
 		}
 
-		if (!this.is('dragging')) {
-			return;
-		}
+		$(document).off('.owl.core');
 
 		this.leave('dragging');
 		this.trigger('dragged');
@@ -1375,7 +1312,7 @@
 			this._plugins[i].destroy();
 		}
 
-		this.$stage.children('.cloned').remove();
+		this.$stage.children('.' + this.options.clonedClass).remove();
 
 		this.$stage.unwrap();
 		this.$stage.children().contents().unwrap();
