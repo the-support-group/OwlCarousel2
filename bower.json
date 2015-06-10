@@ -1,6 +1,9 @@
 {
-  "name": "owl.carousel",
-  "version": "2.0.0-beta.2.4",
+  "name": "tsg-owl.carousel",
+  "homepage": "https://github.com/the-support-group/OwlCarousel2.git",
+  "authors": [
+    "Craig Smith"
+  ],
   "main": [
     "dist/owl.carousel.js",
     "dist/assets/owl.carousel.css"
@@ -11,5 +14,14 @@
   "devDependencies": {
     "foundation": "~5.5.2",
     "qunit": "1.14.0"
-  }
+  },
+  "ignore": [
+        "**/.*",
+        "node_modules",
+        "bower_components",
+        "spec",
+        "scripts",
+        "content",
+        ".gitignore"
+    ],
 }
