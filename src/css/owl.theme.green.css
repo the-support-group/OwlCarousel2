@@ -23,8 +23,10 @@
   .owl-theme .owl-nav .disabled {
     opacity: 0.5;
     cursor: default; }
+
 .owl-theme .owl-nav.disabled + .owl-dots {
   margin-top: 10px; }
+
 .owl-theme .owl-dots {
   text-align: center;
   -webkit-tap-highlight-color: transparent; }
@@ -47,5 +49,6 @@
       -webkit-border-radius: 30px;
       -moz-border-radius: 30px;
       border-radius: 30px; }
-    .owl-theme .owl-dots .owl-dot.active span, .owl-theme .owl-dots .owl-dot:hover span {
+    .owl-theme .owl-dots .owl-dot.active span,
+    .owl-theme .owl-dots .owl-dot:hover span {
       background: #4DC7A0; }

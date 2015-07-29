@@ -160,6 +160,7 @@
 			.html(settings.navText[0])
 			.prependTo(this._controls.$relative)
 			.on('click', $.proxy(function(e) {
+                this._core.trigger('before', e, 'Previous');
 				this.prev(settings.navSpeed);
 			}, this));
 		this._controls.$next = $('<' + settings.navElement + '>')
@@ -167,6 +168,7 @@
 			.html(settings.navText[1])
 			.appendTo(this._controls.$relative)
 			.on('click', $.proxy(function(e) {
+                this._core.trigger('before', e, 'Next');
 				this.next(settings.navSpeed);
 			}, this));
 
