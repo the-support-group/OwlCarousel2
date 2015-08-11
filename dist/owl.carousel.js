@@ -2687,7 +2687,7 @@
 				? $(e.target).index() : $(e.target).parent().index();
 
 			e.preventDefault();
-
+            this._core.trigger('before', e, 'Pager');
 			this.to(index, settings.dotsSpeed);
 		}, this));
 
